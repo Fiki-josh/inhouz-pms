@@ -16,7 +16,7 @@ async function handleGoogleLogin(req: Request, _accessToken: string, _refreshTok
     if (localAccountResult.rowCount) {
       const message = `No Google account exists for email ${body.email}.`;
       (req.session as any).error = message;
-      return done(null, undefined, req.flash(ERROR_KEY, message));
+      return done(null, false, { message: req.flash(ERROR_KEY, message) });
     }
 
     // If the user came from an invitation, this exists

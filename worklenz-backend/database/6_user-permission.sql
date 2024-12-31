@@ -5,6 +5,8 @@
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE ROLE worklenz_client;
 
+-- Update Database name and password. Database should be without quotes, e.g worklenz_db.
+
 GRANT CONNECT ON DATABASE 'DATABASE_NAME' TO worklenz_client;
 GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO worklenz_client;
 

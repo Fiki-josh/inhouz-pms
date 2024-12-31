@@ -1,11 +1,15 @@
-import {SendEmailCommand, SESClient} from "@aws-sdk/client-ses";
-import {Validator} from "jsonschema";
-import {QueryResult} from "pg";
-import {log_error} from "./utils";
-import emailRequestSchema from "../json_schemas/email-request-schema";
-import db from "../config/db";
+import sgMail from '@sendgrid/mail';
+import { Validator } from 'jsonschema';
+import { QueryResult } from 'pg';
+import { log_error } from './utils';
+import emailRequestSchema from '../json_schemas/email-request-schema';
+import db from '../config/db';
 
-const sesClient = new SESClient({region: process.env.AWS_REGION});
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+} else {
+  throw new Error('SENDGRID_API_KEY is not defined');
+}
 
 export interface IEmail {
   to?: string[];
@@ -31,7 +35,7 @@ function isValidMailBody(body: IEmail) {
 }
 
 async function removeMails(query: string, emails: string[]) {
-  const result: QueryResult<{ email: string; }> = await db.query(query, []);
+  const result: QueryResult<{ email: string }> = await db.query(query, []);
   const bouncedEmails = result.rows.map(e => e.email);
   for (let i = 0; i < emails.length; i++) {
     const email = emails[i];
@@ -42,16 +46,16 @@ async function removeMails(query: string, emails: string[]) {
 }
 
 async function filterSpamEmails(emails: string[]): Promise<void> {
-  await removeMails("SELECT email FROM spam_emails ORDER BY email;", emails);
+  await removeMails('SELECT email FROM spam_emails ORDER BY email;', emails);
 }
 
 async function filterBouncedEmails(emails: string[]): Promise<void> {
-  await removeMails("SELECT email FROM bounced_emails ORDER BY email;", emails);
+  await removeMails('SELECT email FROM bounced_emails ORDER BY email;', emails);
 }
 
 export async function sendEmail(email: IEmail): Promise<string | null> {
   try {
-    const options = {...email} as IEmail;
+    const options = { ...email } as IEmail;
     options.to = Array.isArray(options.to) ? Array.from(new Set(options.to)) : [];
 
     if (options.to.length) {
@@ -61,29 +65,15 @@ export async function sendEmail(email: IEmail): Promise<string | null> {
 
     if (!isValidMailBody(options)) return null;
 
-    const charset = "UTF-8";
+    const msg = {
+      to: options.to,
+      from: process.env.SENDGRID_FROM_EMAIL || 'default@example.com',
+      subject: options.subject,
+      html: options.html,
+    };
 
-    const command = new SendEmailCommand({
-      Destination: {
-        ToAddresses: options.to
-      },
-      Message: {
-        Subject: {
-          Charset: charset,
-          Data: options.subject
-        },
-        Body: {
-          Html: {
-            Charset: charset,
-            Data: options.html
-          }
-        }
-      },
-      Source: process.env.SOURCE_EMAIL // Ex: Worklenz <noreply@worklenz.com>
-    });
-
-    const res = await sesClient.send(command);
-    return res.MessageId || null;
+    const res = await sgMail.send(msg);
+    return res[0].statusCode === 202 ? 'Email sent successfully' : null;
   } catch (e) {
     log_error(e);
   }

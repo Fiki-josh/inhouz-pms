@@ -93,7 +93,7 @@ app.post("/webhook/emails/complaints", safeControllerFunction(AwsSesController.h
 app.post("/webhook/emails/reply", safeControllerFunction(AwsSesController.handleReplies));
 
 app.use(flash());
-app.use(csurf({cookie: true}));
+app.use(csurf({ cookie: { httpOnly: true, secure: isProduction() } }) as unknown as express.RequestHandler);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Content-Security-Policy", CSP_POLICIES);
